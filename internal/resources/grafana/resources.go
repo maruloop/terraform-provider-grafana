@@ -100,6 +100,7 @@ var DataSources = addValidationToDataSources(
 	datasourceTeam(),
 	datasourceOrganization(),
 	datasourceOrganizationPreferences(),
+	datasourceCurrentOrganization(),
 )
 
 var Resources = addValidationToResources(
