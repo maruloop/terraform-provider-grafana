@@ -1,7 +1,6 @@
 package grafana
 
 import (
-	"fmt"
 	"context"
 	"strconv"
 	"strings"
@@ -29,6 +28,22 @@ func datasourceCurrentOrganization() *common.DataSource {
 					Type: schema.TypeString,
 				},
 			},
+			"editors": {
+				Type:        schema.TypeList,
+				Computed:    true,
+				Description: "List of editor user logins in the current organization.",
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
+			"viewers": {
+				Type:        schema.TypeList,
+				Computed:    true,
+				Description: "List of viewer user logins in the current organization.",
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 	}
 
@@ -42,7 +57,6 @@ func dataSourceCurrentOrganizationRead(ctx context.Context, d *schema.ResourceDa
 	if err != nil {
 		return diag.Errorf("failed to get current organization: %s", err)
 	}
-	fmt.Printf("🔍 Auth'd Org ID: %d, Name: %s\n", resp.Payload.ID, resp.Payload.Name)
 	currentOrg := resp.GetPayload()
 
 	orgUsers, err := client.Org.GetOrgUsersForCurrentOrg(nil)
@@ -51,13 +65,27 @@ func dataSourceCurrentOrganizationRead(ctx context.Context, d *schema.ResourceDa
 	}
 
 	var admins []string
+	var editors []string
+	var viewers []string
 	for _, user := range orgUsers.Payload {
 		if strings.ToLower(user.Role) == "admin" {
 			admins = append(admins, user.Email)
 		}
+		if strings.ToLower(user.Role) == "editor" {
+			editors = append(editors, user.Email)
+		}
+		if strings.ToLower(user.Role) == "viewer" {
+			viewers = append(viewers, user.Email)
+		}
 	}
 
 	if err := d.Set("admins", admins); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("editors", editors); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("viewers", viewers); err != nil {
 		return diag.FromErr(err)
 	}
 
