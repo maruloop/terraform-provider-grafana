@@ -93,6 +93,10 @@ func dataSourceCurrentOrganizationRead(ctx context.Context, d *schema.ResourceDa
 		return diag.FromErr(err)
 	}
 
+	if err := d.Set("org_id", strconv.FormatInt(currentOrg.ID, 10)); err != nil {
+		return diag.FromErr(err)
+	}
+
 	d.SetId(strconv.FormatInt(currentOrg.ID, 10))
 	return nil
 }

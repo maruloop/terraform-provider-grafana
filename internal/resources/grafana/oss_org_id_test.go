@@ -1,6 +1,8 @@
 package grafana_test
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"regexp"
@@ -67,6 +69,11 @@ func orgScopedTest(t *testing.T) int64 {
 			t.Fatal(err)
 		}
 	})
+	createUserAndAddToOrg(t, *org.Payload.OrgID, "editor-01@example.com", "Editor")
+	createUserAndAddToOrg(t, *org.Payload.OrgID, "editor-02@example.com", "Editor")
+	createUserAndAddToOrg(t, *org.Payload.OrgID, "viewer-01@example.com", "Viewer")
+	createUserAndAddToOrg(t, *org.Payload.OrgID, "viewer-02@example.com", "Viewer")
+
 	orgClient := grafanaTestClient().WithOrgID(*org.Payload.OrgID)
 	sa, err := orgClient.ServiceAccounts.CreateServiceAccount(
 		service_accounts.NewCreateServiceAccountParams().WithBody(&models.CreateServiceAccountForm{
@@ -94,4 +101,53 @@ func orgScopedTest(t *testing.T) int64 {
 	})
 
 	return *org.Payload.OrgID
+}
+
+func createUser(t *testing.T, login string) int64 {
+	t.Helper()
+
+	client := grafanaTestClient()
+
+	n := 32
+	bytes := make([]byte, n)
+	if _, err := rand.Read(bytes); err != nil {
+		t.Fatalf("failed to generate password: %v", err)
+	}
+	pass := base64.StdEncoding.EncodeToString(bytes)
+
+	u := &models.AdminCreateUserForm{
+		Name:     login,
+		Login:    login,
+		Email:    login,
+		Password: models.Password(pass),
+	}
+
+	resp, err := client.AdminUsers.AdminCreateUser(u)
+	if err != nil {
+		t.Fatalf("failed to create user %s: %v", login, err)
+	}
+	userID := resp.Payload.ID
+
+	t.Cleanup(func() {
+		if _, err := client.AdminUsers.AdminDeleteUser(userID); err != nil {
+			t.Logf("failed to delete user %d during cleanup: %v", userID, err)
+		}
+	})
+
+	return userID
+}
+
+func createUserAndAddToOrg(t *testing.T, orgID int64, login string, role string) {
+	t.Helper()
+
+	createUser(t, login)
+
+	client := grafanaTestClient()
+	_, err := client.Orgs.AddOrgUser(orgID, &models.AddOrgUserCommand{
+		LoginOrEmail: login,
+		Role:   role,
+	})
+	if err != nil {
+		t.Fatalf("failed to add user %s to org %d: %v", login, orgID, err)
+	}
 }
